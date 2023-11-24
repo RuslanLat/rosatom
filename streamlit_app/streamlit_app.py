@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import pandas as pd
+import plotly.express as px
 import numpy as np
 from collections import defaultdict
 import time as my_time
@@ -11,11 +12,11 @@ from st_aggrid.grid_options_builder import GridOptionsBuilder
 
 st.set_page_config(
     page_title='Росатом, алгоритм "Емеля"',
-    page_icon="images/favicon.png",
+    page_icon="streamlit_app/images/favicon.png",
     layout="wide",
 )  # layout = "wide"
 
-with open("css/AG_GRID_LOCALE_RU.txt", "r") as f:
+with open("streamlit_app/css/AG_GRID_LOCALE_RU.txt", "r") as f:
     AG_CRID_LOCALE_RU = json.load(f)
 
 col1, col2 = st.columns([1, 5])
@@ -111,6 +112,8 @@ def algoritm_emelya(df_series, df_ovens):
     oven_timing = defaultdict()
     # распределенные серии
     series_trye = []
+    # распределенные печей
+    ovens_trye = set()
     # проход по сериям в порядке приоритета
     for i in list(map(int, df_series["series"].unique())):
         # выборка текущей серии
@@ -132,7 +135,7 @@ def algoritm_emelya(df_series, df_ovens):
         if not oven_timing.get(oven_index):
             data_dict = defaultdict(dict)
              # номер печи
-            data_dict.update({"oven": oven_index})
+            data_dict.update({"oven": str(oven_index)})
             # данные серии
             data_dict.update({"series": "-"})
             # температура печи
@@ -151,7 +154,7 @@ def algoritm_emelya(df_series, df_ovens):
         progrev_false = 1  # len(df_series_now)
         total_time_for_series = df_series_now.iloc[:, [1, 3, 4, 5]].sum().sum() + (len(df_series_now) - 2) * 120 + 15
         if oven_timing[oven_index] + timedelta(minutes=int(total_time_for_series)) <= dt_end:
-            pass
+            ovens_trye.add(oven_index)
         else:
             continue
         series_trye.append(i)
@@ -162,7 +165,7 @@ def algoritm_emelya(df_series, df_ovens):
                 # текущий день
                 # data_dict.update({"day" : 0})
                 # номер печи
-                data_dict.update({"oven": oven_index})
+                data_dict.update({"oven": str(oven_index)})
                 # данные серии
                 data_dict.update({"series": series})
                 # температура печи
@@ -183,7 +186,7 @@ def algoritm_emelya(df_series, df_ovens):
                 # текущий день
                 # data_dict.update({"day" : 0})
                 # номер печи
-                data_dict.update({"oven": oven_index})
+                data_dict.update({"oven": str(oven_index)})
                 # данные серии
                 data_dict.update({"series": series})
                 # температура печи
@@ -213,7 +216,7 @@ def algoritm_emelya(df_series, df_ovens):
                     # текущий день
                     # data_dict.update({"day" : 0})
                     # номер печи
-                    data_dict.update({"oven": oven_index})
+                    data_dict.update({"oven": str(oven_index)})
                     # данные серии
                     data_dict.update({"series": series})
                     # температура печи
@@ -235,7 +238,7 @@ def algoritm_emelya(df_series, df_ovens):
         # текущий день
         # data_dict.update({"day" : 0})
         # номер печи
-        data_dict.update({"oven": oven_index})
+        data_dict.update({"oven": str(oven_index)})
         # данные серии
         data_dict.update({"series": "-"})
         # температура печи
@@ -253,7 +256,7 @@ def algoritm_emelya(df_series, df_ovens):
         # планирование операции серии в печи
         data_ovens.append(data_dict)
 
-    return data_ovens, series_trye
+    return data_ovens, series_trye, ovens_trye
 
 
 col1, col2, col3 = st.columns(3)
@@ -276,7 +279,7 @@ with col2:
 if submitted and uploaded_file:
     
     start = my_time.time() ## точка отсчета времени       
-    data_ovens, series_trye = algoritm_emelya(series_df, ovens_df)
+    data_ovens, series_trye, ovens_trye = algoritm_emelya(series_df, ovens_df)
     end = my_time.time() - start ## собственно время работы программы
 
 
@@ -305,13 +308,20 @@ if submitted and uploaded_file:
     gridoptions = gd.build()
     st.divider()
     series_trye = str(round(len(series_trye) / len (series_df["series"].unique()) * 100, 2)) + " %"
-    st.write(f"""**Результаты работы алгоритма:**
+    ovens_trye = str(round(len(ovens_trye) / len (ovens_df) * 100, 2)) + " %"
+    
+    st.write("### Результаты работы алгоритма")
+    st.write(f"""
         
     📌 Наименование файла: {uploaded_file.name}
         
     ✔️ Распределение серий:  {series_trye}
 
+    ✔️ Распределение печей:  {ovens_trye}
+
     ✔️ Время работы алгоритма:  {str(round(end, 2)) + " секунд"}
+
+    ✔️ Минимальная загрузка печи:  {df.groupby("Номер печи")["Текущее время"].max().min()}
 
     ✔️ Максимальная загрузка печи:  {df["Текущее время"].max()}
        
@@ -326,6 +336,51 @@ if submitted and uploaded_file:
         allow_unsafe_jscode=True,
         theme="alpine",
     )
+
+    if grid_table:
+        df_plotly = df.copy()
+        df_plotly['Текущее время'] = pd.to_datetime(df_plotly['Текущее время'])
+        df_plotly['start'] = df_plotly.groupby('Номер печи')['Текущее время'].shift(1)
+        df_plotly['start'] = df_plotly['start'].fillna(df_plotly['start'].min().normalize())
+        df_plotly = df_plotly[df_plotly['Наименование операции'] != "start_day"]
+
+        df_plotly = df_plotly.sort_values('Номер печи')
+        df_plotly['Номер печи'] = df_plotly['Номер печи'].apply(lambda x: "№" + x)
+
+        df_plotly['Start'] = df_plotly['start']
+        df_plotly['Finish'] = df_plotly['Текущее время']
+        colors = {
+                    'progrev':'#ff0',
+                    'change_series':'#ccc',
+                    'nagrev':'#fc0',
+                    'kovka':'#9c3',
+                    'otzhig':'#f60',
+                    'prokat':'#639'
+                    }
+
+        legends = {
+        'change_series':  'Смена серии',
+        'nagrev':'Нагрев',
+        'progrev':'Прогрев',
+        'kovka':'Ковка',
+        'otzhig':'Отжиг',
+        'prokat':'Прокат'
+            
+        }
+        fig = px.timeline(df_plotly, x_start="Start", x_end="Finish", y="Номер печи", color="Наименование операции",
+                    height = 800,
+                color_discrete_map = colors).for_each_trace(lambda t: t.update(name = legends[t.name]))
+        
+        st.plotly_chart(fig, theme=None, use_container_width=True)
+
+        df_plotly['named'] = df_plotly['Наименование операции'].map(lambda x: legends.get(x))
+        fig1 = px.timeline(df_plotly[df_plotly['Наименование операции'].isin(['kovka','prokat'])], x_start="Start", 
+            x_end="Finish", y="named", hover_data='Номер печи',
+            color='Наименование операции',
+            color_discrete_map = colors,
+            height = 400, labels=dict(named="Наименование операции")).update_layout(showlegend=False)
+        st.plotly_chart(fig1, theme=None, use_container_width=True)
+
 
 st.write("##")
 st.markdown(
