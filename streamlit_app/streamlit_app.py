@@ -130,12 +130,12 @@ def algoritm_emelya(df_series, df_ovens):
             )[0][0]
        
         except:
-            continue
+            pass
         # фиксация начала дня
         if not oven_timing.get(oven_index):
             data_dict = defaultdict(dict)
              # номер печи
-            data_dict.update({"oven": str(oven_index)})
+            data_dict.update({"oven": oven_index})
             # данные серии
             data_dict.update({"series": "-"})
             # температура печи
@@ -156,7 +156,61 @@ def algoritm_emelya(df_series, df_ovens):
         if oven_timing[oven_index] + timedelta(minutes=int(total_time_for_series)) <= dt_end:
             ovens_trye.add(oven_index)
         else:
-            continue
+            try:
+                # поиск другой печи 
+                oven_index = np.where((~df_ovens.index.isin(ovens_trye)) & (df_ovens["working_temps"].apply(lambda x: True if df_series_now["temperature"].unique()[0] in x else False)))[0][0]
+                # df_ovens.iloc[oven_index]["start_temp"] = df_series_now["temperature"].unique()[0]
+            except:
+                continue
+            if not oven_timing.get(oven_index):
+                # фиксация начала дня
+                data_dict = defaultdict(dict)
+                # текущий день
+                # data_dict.update({"day" : 0})
+                # номер печи
+                data_dict.update({"oven" : oven_index})
+                # данные серии
+                data_dict.update({"series" : "-"})
+                # температура печи
+                data_dict.update({"temp" : int(df_ovens.loc[oven_index]["start_temp"])})
+                # операция в печи
+                data_dict.update({"operation" : "start_day"})
+                # продолжительность операции в минутах
+                data_dict.update({"timing" : 0})
+                # текущее время
+                data_dict.update({"total_timing" : dt})
+                # добавление в план
+                data_ovens.append(data_dict)
+                # текущее время в печи
+                oven_timing[oven_index] = dt
+
+                # фиксация смены режима
+                df_ovens.iloc[oven_index]["start_temp"] = df_series_now["temperature"].unique()[0]
+
+                data_dict = defaultdict(dict)
+                # текущий день
+                # data_dict.update({"day" : 0})
+                # номер печи
+                data_dict.update({"oven" : oven_index})
+                # данные серии
+                data_dict.update({"series" : series})
+                # температура печи
+                data_dict.update({"temp" : int(df_ovens.iloc[oven_index]["start_temp"])})
+                # операция в печи
+                data_dict.update({"operation" : "smena_rezhima"})
+                # продолжительность операции в минутах
+                data_dict.update({"timing" : 120})
+                # текущее время в печи
+                oven_timing[oven_index] = oven_timing[oven_index] + timedelta(minutes=120)
+                # текущее время
+                data_dict.update({"total_timing" : oven_timing[oven_index]})
+                # планирование операции серии в печи
+                data_ovens.append(data_dict)
+                if oven_timing[oven_index] + timedelta(minutes=int(total_time_for_series)) <= dt_end:
+                    ovens_trye.add(oven_index)
+                else:       
+                    continue
+
         series_trye.append(i)
         # планирование операции серии в печи
         for temperature, nagrev, series, prokat, otzhig, kovka in df_series_now.values:
@@ -165,7 +219,7 @@ def algoritm_emelya(df_series, df_ovens):
                 # текущий день
                 # data_dict.update({"day" : 0})
                 # номер печи
-                data_dict.update({"oven": str(oven_index)})
+                data_dict.update({"oven": oven_index})
                 # данные серии
                 data_dict.update({"series": series})
                 # температура печи
@@ -186,7 +240,7 @@ def algoritm_emelya(df_series, df_ovens):
                 # текущий день
                 # data_dict.update({"day" : 0})
                 # номер печи
-                data_dict.update({"oven": str(oven_index)})
+                data_dict.update({"oven": oven_index})
                 # данные серии
                 data_dict.update({"series": series})
                 # температура печи
@@ -216,7 +270,7 @@ def algoritm_emelya(df_series, df_ovens):
                     # текущий день
                     # data_dict.update({"day" : 0})
                     # номер печи
-                    data_dict.update({"oven": str(oven_index)})
+                    data_dict.update({"oven": oven_index})
                     # данные серии
                     data_dict.update({"series": series})
                     # температура печи
@@ -238,7 +292,7 @@ def algoritm_emelya(df_series, df_ovens):
         # текущий день
         # data_dict.update({"day" : 0})
         # номер печи
-        data_dict.update({"oven": str(oven_index)})
+        data_dict.update({"oven": oven_index})
         # данные серии
         data_dict.update({"series": "-"})
         # температура печи
@@ -345,7 +399,7 @@ if submitted and uploaded_file:
         df_plotly = df_plotly[df_plotly['Наименование операции'] != "start_day"]
 
         df_plotly = df_plotly.sort_values('Номер печи')
-        df_plotly['Номер печи'] = df_plotly['Номер печи'].apply(lambda x: "№" + x)
+        df_plotly['Номер печи'] = df_plotly['Номер печи'].apply(lambda x: "№" + str(x))
 
         df_plotly['Start'] = df_plotly['start']
         df_plotly['Finish'] = df_plotly['Текущее время']
@@ -355,7 +409,8 @@ if submitted and uploaded_file:
                     'nagrev':'#fc0',
                     'kovka':'#9c3',
                     'otzhig':'#f60',
-                    'prokat':'#639'
+                    'prokat':'#639',
+                    "smena_rezhima":'#465',
                     }
 
         legends = {
@@ -364,11 +419,11 @@ if submitted and uploaded_file:
         'progrev':'Прогрев',
         'kovka':'Ковка',
         'otzhig':'Отжиг',
-        'prokat':'Прокат'
-            
+        'prokat':'Прокат',
+        "smena_rezhima" : 'Смена режима'            
         }
         fig = px.timeline(df_plotly, x_start="Start", x_end="Finish", y="Номер печи", color="Наименование операции",
-                    height = 800,
+                    height = 6000,
                 color_discrete_map = colors).for_each_trace(lambda t: t.update(name = legends[t.name]))
         
         st.plotly_chart(fig, theme=None, use_container_width=True)
