@@ -9,6 +9,11 @@
 ![qrcode](streamlit_app/images/qrcode.gif)
 
 
+[Дистрибутив](https://drive.google.com/file/d/1zeSgDcDoq32e9phg6LMVinFFRT71Tjcd/view?usp=sharing) под Windows (протестировано на версии 22H2 Windows 10 Домашняя для одного языка)
+
+[Код алгоритма](streamlit_app/streamlit_app.py) - реализован в функции algoritm_emelya
+
+
 [Презентация](presentation.pptx)
 
 
