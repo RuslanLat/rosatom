@@ -14,7 +14,7 @@
 [Код алгоритма](streamlit_app/streamlit_app.py) - реализован в функции algoritm_emelya
 
 
-[Презентация](presentation.pptx)
+[Презентация](presentation.pdf)
 
 
 ## Команда "Старики разбойники"
