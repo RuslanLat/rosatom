@@ -6,6 +6,9 @@
 
 [WEB - сервис](https://rosatom.streamlit.app/)
 
+
+https://github.com/RuslanLat/rosatom/assets/93369024/1cfeda3d-6391-4fb7-80a5-f6c0a8880433
+
 ![qrcode](streamlit_app/images/qrcode.gif)
 
 
